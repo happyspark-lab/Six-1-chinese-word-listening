@@ -686,13 +686,13 @@ try { if (synth && synth.onvoiceschanged !== undefined) synth.onvoiceschanged = 
 // ===================================================================
 // 数据持久化
 // ===================================================================
+const STORAGE_KEY = 'cn_userData_g6_1_v2';
+const LEGACY_STORAGE_KEY = 'cn_userData_g6_1';
 function saveData() {
-    try { localStorage.setItem('cn_userData_g6_1', JSON.stringify(userData)); } catch(e) {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(userData)); } catch(e) {}
 }
 function loadAllData() {
-    try {
-        userData = JSON.parse(localStorage.getItem('cn_userData_g6_1') || '{}');
-    } catch(e) { userData = {}; }
+    try { const saved=localStorage.getItem(STORAGE_KEY); userData=JSON.parse(saved||localStorage.getItem(LEGACY_STORAGE_KEY)||'{}'); if(!saved)saveData(); } catch(e) { userData = {}; }
 }
 function ensureUser(uid) {
     if (!userData[uid]) {
@@ -766,13 +766,13 @@ function doLogin() {
     try {
         var id = document.getElementById('login-id').value.trim().toUpperCase();
         if (!id) { showLoginError('请输入学号'); return; }
-        try { userData = JSON.parse(localStorage.getItem('cn_userData_g6_1') || '{}'); } catch(e) { userData = {}; }
+        loadAllData();
         if (!userData[id]) {
             userData[id] = {
                 name: id, joinDate: todayStr(), lastDictDate: '', streak: 0,
                 masteredWords: {}, errorWords: {}, sessionHistory: []
             };
-            try { localStorage.setItem('cn_userData_g6_1', JSON.stringify(userData)); } catch(e) {}
+            saveData();
         }
         currentUser = { id: id, name: userData[id].name || id };
         document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
@@ -844,6 +844,7 @@ function initSelectors() {
         opt.textContent = TEXTBOOK_DATA[key].gradeLabel;
         gradeEl.appendChild(opt);
     });
+    const saved=getUserData().lastSelection;if(saved&&TEXTBOOK_DATA[saved.grade])gradeEl.value=saved.grade;
     onGradeChange();
 }
 function onGradeChange() {
@@ -856,9 +857,11 @@ function onGradeChange() {
         opt.textContent = u.name;
         unitEl.appendChild(opt);
     });
+    const saved=getUserData().lastSelection;if(saved&&saved.grade===grade&&TEXTBOOK_DATA[grade].units[saved.unit])unitEl.value=saved.unit;saveLastSelection();
     updatePreview();
 }
-function onUnitChange() { updatePreview(); }
+function onUnitChange() { saveLastSelection(); updatePreview(); }
+function saveLastSelection(){if(!currentUser)return;const grade=document.getElementById('sel-grade').value,unit=document.getElementById('sel-unit').value;if(!grade||unit==='')return;getUserData().lastSelection={grade,unit:parseInt(unit)};saveData();}
 function updatePreview() {
     const grade = document.getElementById('sel-grade').value;
     const ui    = parseInt(document.getElementById('sel-unit').value);
@@ -889,6 +892,7 @@ function unlockAudio() {
 
 function startDictation() {
     unlockAudio();
+    saveLastSelection();
     const grade = document.getElementById('sel-grade').value;
     const ui    = parseInt(document.getElementById('sel-unit').value);
     const unit  = TEXTBOOK_DATA[grade].units[ui];
